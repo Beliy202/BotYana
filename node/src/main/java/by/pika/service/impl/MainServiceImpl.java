@@ -2,11 +2,14 @@ package by.pika.service.impl;
 
 import by.pika.dao.AppUserDAO;
 import by.pika.dao.RawDataDAO;
+import by.pika.entity.AppDocument;
 import by.pika.entity.AppUser;
 import by.pika.entity.RawData;
+import by.pika.exceptions.UploadFileException;
+import by.pika.service.FileService;
 import by.pika.service.MainService;
 import by.pika.service.ProducerService;
-import com.sun.xml.bind.v2.TODO;
+import by.pika.service.enums.ServiceCommand;
 import lombok.extern.log4j.Log4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -15,7 +18,7 @@ import org.telegram.telegrambots.meta.api.objects.User;
 
 import static by.pika.enums.UserState.BASIC_STATE;
 import static by.pika.enums.UserState.WAIT_FOR_EMAIL_STATE;
-import static by.pika.service.enums.ServiceCommands.*;
+import static by.pika.service.enums.ServiceCommand.*;
 
 @Service
 @Log4j
@@ -27,10 +30,13 @@ public class MainServiceImpl implements MainService {
 
     private final AppUserDAO appUserDAO;
 
-    public MainServiceImpl(RawDataDAO rawDataDao, ProducerService producerService, AppUserDAO appUserDAO) {
+    private final FileService fileService;
+
+    public MainServiceImpl(RawDataDAO rawDataDao, ProducerService producerService, AppUserDAO appUserDAO, FileService fileService) {
         this.rawDataDao = rawDataDao;
         this.producerService = producerService;
         this.appUserDAO = appUserDAO;
+        this.fileService = fileService;
     }
 
     @Override
@@ -41,7 +47,8 @@ public class MainServiceImpl implements MainService {
         var text = update.getMessage().getText();
         var output = "";
 
-        if (CANCEL.equals(text)) {
+        var serviceCommand = ServiceCommand.fromValue(text);
+        if (CANCEL.equals(serviceCommand)) {
             output = cancelProcess(appUser);
         } else if (BASIC_STATE.equals(userState)) {
             output = processServiceCommand(appUser, text);
@@ -53,7 +60,7 @@ public class MainServiceImpl implements MainService {
         }
 
         var chatId = update.getMessage().getChatId();
-        sendAnsew(output, chatId);
+        sendAnswer(output, chatId);
 
 
     }
@@ -67,9 +74,17 @@ public class MainServiceImpl implements MainService {
             return;
         }
 
-        //TODO: добавить сохранение документа
-        var answer = "Документ успешно загружен! Ссылка для скачивания: http://test.ru/get-doc/777";
-        sendAnsew(answer, chatId);
+        try {
+            AppDocument doc = fileService.processDoc(update.getMessage());
+//            String link = fileService.generateLink(doc.getId(), LinkType.GET_DOC);
+            var answer = "Документ успешно загружен! "
+                    + "Ссылка для скачивания: http://test.ru/get-photo/777 " ;
+            sendAnswer(answer, chatId);
+        } catch (UploadFileException ex) {
+            log.error(ex);
+            String error = "К сожалению, загрузка файла не удалась. Повторите попытку позже.";
+            sendAnswer(error, chatId);
+        }
     }
 
     @Override
@@ -83,24 +98,25 @@ public class MainServiceImpl implements MainService {
 
         //TODO: добавить сохранение фото
         var answer = "Фото успешно загружено! Ссылка для скачивания: http://test.ru/get-photo/777";
-        sendAnsew(answer, chatId);
+        sendAnswer(answer, chatId);
     }
 
     private boolean isNotAllowToSendContent(Long chatId, AppUser appUser) {
         var userState = appUser.getState();
         if (!appUser.getIsActive()) {
-            var error = "Зарегистрируйтесь или активируйте свою учетную запись для загрузки контента.";
-            sendAnsew(error, chatId);
+            var error = "Зарегистрируйтесь или активируйте "
+                    + "свою учетную запись для загрузки контента.";
+            sendAnswer(error, chatId);
             return true;
         } else if (!BASIC_STATE.equals(userState)) {
-            var error = "Отмените текующую команду с помощью /cancel для отправки файлов.";
-            sendAnsew(error, chatId);
+            var error = "Отмените текущую команду с помощью /cancel для отправки файлов.";
+            sendAnswer(error, chatId);
             return true;
         }
         return false;
     }
 
-    private void sendAnsew(String output, Long chatId) {
+    private void sendAnswer(String output, Long chatId) {
 
         SendMessage sendMessage = new SendMessage();
         sendMessage.setChatId(chatId);
