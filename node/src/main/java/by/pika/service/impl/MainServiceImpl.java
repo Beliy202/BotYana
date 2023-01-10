@@ -3,12 +3,14 @@ package by.pika.service.impl;
 import by.pika.dao.AppUserDAO;
 import by.pika.dao.RawDataDAO;
 import by.pika.entity.AppDocument;
+import by.pika.entity.AppPhoto;
 import by.pika.entity.AppUser;
 import by.pika.entity.RawData;
 import by.pika.exceptions.UploadFileException;
 import by.pika.service.FileService;
 import by.pika.service.MainService;
 import by.pika.service.ProducerService;
+import by.pika.service.enums.LinkType;
 import by.pika.service.enums.ServiceCommand;
 import lombok.extern.log4j.Log4j;
 import org.springframework.stereotype.Service;
@@ -76,9 +78,9 @@ public class MainServiceImpl implements MainService {
 
         try {
             AppDocument doc = fileService.processDoc(update.getMessage());
-//            String link = fileService.generateLink(doc.getId(), LinkType.GET_DOC);
+            String link = fileService.generateLink(doc.getId(), LinkType.GET_DOC);
             var answer = "Документ успешно загружен! "
-                    + "Ссылка для скачивания: http://test.ru/get-photo/777 " ;
+                    + "Ссылка для скачивания: " + link;
             sendAnswer(answer, chatId);
         } catch (UploadFileException ex) {
             log.error(ex);
@@ -96,9 +98,17 @@ public class MainServiceImpl implements MainService {
             return;
         }
 
-        //TODO: добавить сохранение фото
-        var answer = "Фото успешно загружено! Ссылка для скачивания: http://test.ru/get-photo/777";
-        sendAnswer(answer, chatId);
+        try {
+            AppPhoto photo = fileService.processPhoto(update.getMessage());
+            String link = fileService.generateLink(photo.getId(), LinkType.GET_PHOTO);
+            var answer = "Фото успешно загружено! "
+                    + "Ссылка для скачивания: " + link;
+            sendAnswer(answer, chatId);
+        } catch (UploadFileException ex) {
+            log.error(ex);
+            String error = "К сожалению, загрузка фото не удалась. Повторите попытку позже.";
+            sendAnswer(error, chatId);
+        }
     }
 
     private boolean isNotAllowToSendContent(Long chatId, AppUser appUser) {
