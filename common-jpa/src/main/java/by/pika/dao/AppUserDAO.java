@@ -3,7 +3,13 @@ package by.pika.dao;
 import by.pika.entity.AppUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface AppUserDAO extends JpaRepository<AppUser,Long> {
+import java.util.Optional;
 
-    AppUser findAppUserByTelegramUserId(Long id);
+public interface AppUserDAO extends JpaRepository<AppUser, Long> {
+
+    Optional<AppUser> findByTelegramUserId(Long id);
+    Optional<AppUser> findById(Long id);
+    Optional<AppUser> findByEmail(String email);
+
+
 }
